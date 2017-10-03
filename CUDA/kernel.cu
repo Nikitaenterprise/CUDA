@@ -6,6 +6,9 @@
 #include <Windows.h>
 #include <iostream>
 #include <ctime>
+#include <string>
+
+#include "Hash.h"
 
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
 
@@ -20,123 +23,68 @@ __global__ void multKernel(int *c, const int *a, const int *b, int n)
 	if (i<n) c[i] = a[i] * b[((i * 1) % n + n) % n];
 }
 
-
-//int main()
+//int main(int argc, char * argv[])
 //{
-//    const int arraySize = 5;
-//    const int a[arraySize] = { 1, 2, 3, 4, 5 };
-//    const int b[arraySize] = { 10, 20, 30, 40, 50 };
-//    int c[arraySize] = { 0 };
-//
-//    // Add vectors in parallel.
-//    cudaError_t cudaStatus = addWithCuda(c, a, b, arraySize);
-//    if (cudaStatus != cudaSuccess) {
-//        fprintf(stderr, "addWithCuda failed!");
-//        return 1;
-//    }
-//
-//    printf("{1,2,3,4,5} + {10,20,30,40,50} = {%d,%d,%d,%d,%d}\n",
-//        c[0], c[1], c[2], c[3], c[4]);
-//
-//    // cudaDeviceReset must be called before exiting in order for profiling and
-//    // tracing tools such as Nsight and Visual Profiler to show complete traces.
-//    cudaStatus = cudaDeviceReset();
-//    if (cudaStatus != cudaSuccess) {
-//        fprintf(stderr, "cudaDeviceReset failed!");
-//        return 1;
-//    }
-//
-//    return 0;
-//}
-
-//int main(int argc, char *  argv[])
-//{
-//	int n = 10000000;
+//	int t = GetTickCount();
+//	int  n = 10000000;
 //	int *a = new int[n];
 //	int *b = new int[n];
 //	int *c = new int[n];
-//	int t = GetTickCount();
+//	int *d = new int[n];
+//	int *_a;
+//	int *_b;
+//	int *_c;
+//
 //	for (int i = 0; i<n; i++)
 //	{
 //		a[i] = rand();
 //		b[i] = rand();
 //	}
-//	for (int i = 0; i<n; i++)
+//	int startTime = clock();
+//	for (int i = 0; i < n; i++)
 //	{
-//		c[i] = a[i] * b[i];
-//		// printf("c = %i,	a = %i,	b = %i\n", c[i], a[i], b[i]); 
+//		c[i] = a[i] * b[((i * 1) % n + n )%n];
 //	}
+//	int endTime = clock();
+//	std::cout << "Run time on CPU = " << endTime - startTime << std::endl;
 //
-//	std::cout << "Time = " << t << std::endl;
-//	system("pause");
-//}
-
-int main(int argc, char * argv[])
-{
-	int t = GetTickCount();
-	int  n = 10000000;
-	int *a = new int[n];
-	int *b = new int[n];
-	int *c = new int[n];
-	int *d = new int[n];
-	int *_a;
-	int *_b;
-	int *_c;
-
-	for (int i = 0; i<n; i++)
-	{
-		a[i] = rand();
-		b[i] = rand();
-	}
-	int startTime = clock();
-	for (int i = 0; i < n; i++)
-	{
-		c[i] = a[i] * b[((i * 1) % n + n )%n];
-	}
-	int endTime = clock();
-	std::cout << "Run time on CPU = " << endTime - startTime << std::endl;
-
-	if (cudaMalloc((void**)&_a, n * sizeof(int)) != cudaSuccess) std::cout << "Error CudaMalloc1";
-	if (cudaMalloc((void**)&_b, n * sizeof(int)) != cudaSuccess) std::cout << "Error CudaMalloc2";
-	if (cudaMalloc((void**)&_c, n * sizeof(int)) != cudaSuccess) std::cout << "Error CudaMalloc3";
-
-	if (cudaMemcpy(_a, a, n * sizeof(int), cudaMemcpyHostToDevice) != cudaSuccess) std::cout << "Error CudaMemcpy4" << std::endl;
-	if (cudaMemcpy(_b, b, n * sizeof(int), cudaMemcpyHostToDevice) != cudaSuccess) std::cout << "Error CudaMemcpy5" << std::endl;
-
-	startTime = clock();
-	multKernel << <n / 512 + 1, 512 >> >(_c, _a, _b, n);
-	if (cudaDeviceSynchronize() != cudaSuccess) std::cout << "Error CudaDeviceSynchronize7";
-	endTime = clock();
-	std::cout << "Run time on GPU = " << endTime - startTime << std::endl;
-	
-	if (cudaMemcpy(d, _c, n * sizeof(int), cudaMemcpyDeviceToHost) != cudaSuccess) std::cout << "Error  CudaMemcpy6" << std::endl;
-	for (int i = 0; i < n; i++)
-	{
-		if (c[i] != d[i]) std::cout << "Arrays are not equal : " << c[i] << " != " << d[i] << std::endl;
-	}
-	std::system("pause");
-}
-
-
-//int main(int argc, char *  argv[]) {
-//	int		deviceCount;
-//	cudaDeviceProp	devProp;
-//	cudaGetDeviceCount(&deviceCount);
-//	printf("Found %d devices\n", deviceCount);
-//	for (int device = 0; device < deviceCount; device++) {
-//		cudaGetDeviceProperties(&devProp, device);
-//		printf("Device %d\n", device);
-//		printf("Compute capability     : %d.%d\n", devProp.major, devProp.minor);
-//		printf("Name                   : %s\n", devProp.name);
-//		printf("Total Global Memory    : %d\n", devProp.totalGlobalMem);
-//		printf("Shared memory per block: %d\n", devProp.sharedMemPerBlock);
-//		printf("Registers per block    : %d\n", devProp.regsPerBlock);
-//		printf("Warp size              : %d\n", devProp.warpSize);
-//		printf("Max threads per block  : %d\n", devProp.maxThreadsPerBlock);
-//		printf("Total constant memory  : %d\n", devProp.totalConstMem);
+//	if (cudaMalloc((void**)&_a, n * sizeof(int)) != cudaSuccess) std::cout << "Error CudaMalloc1";
+//	if (cudaMalloc((void**)&_b, n * sizeof(int)) != cudaSuccess) std::cout << "Error CudaMalloc2";
+//	if (cudaMalloc((void**)&_c, n * sizeof(int)) != cudaSuccess) std::cout << "Error CudaMalloc3";
+//
+//	if (cudaMemcpy(_a, a, n * sizeof(int), cudaMemcpyHostToDevice) != cudaSuccess) std::cout << "Error CudaMemcpy4" << std::endl;
+//	if (cudaMemcpy(_b, b, n * sizeof(int), cudaMemcpyHostToDevice) != cudaSuccess) std::cout << "Error CudaMemcpy5" << std::endl;
+//
+//	startTime = clock();
+//	multKernel << <n / 512 + 1, 512 >> >(_c, _a, _b, n);
+//	if (cudaDeviceSynchronize() != cudaSuccess) std::cout << "Error CudaDeviceSynchronize7";
+//	endTime = clock();
+//	std::cout << "Run time on GPU = " << endTime - startTime << std::endl;
+//	
+//	if (cudaMemcpy(d, _c, n * sizeof(int), cudaMemcpyDeviceToHost) != cudaSuccess) std::cout << "Error  CudaMemcpy6" << std::endl;
+//	for (int i = 0; i < n; i++)
+//	{
+//		if (c[i] != d[i]) std::cout << "Arrays are not equal : " << c[i] << " != " << d[i] << std::endl;
 //	}
-//	return 0;
+//	std::system("pause");
 //}
+
+int main(int argc, char *argv[])
+{
+	hash::Hash hash;
+	
+	std::string str = "Appolon13";
+	/*std::cout << "Type string you want to hash" << std::endl;
+	std::cin >> str;
+	std::cout << "Type length of hash string" << std::endl;
+	unsigned int length;
+	std::cin >> length;*/
+	str = hash.GetHash(str, 5);
+	std::cout << str << std::endl;
+
+	system("PAUSE");
+	return 0;
+}
 
 // Helper function for using CUDA to add vectors in parallel.
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size)
