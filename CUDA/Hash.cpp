@@ -149,3 +149,8 @@ std::string hash::Hash::GetHash(std::string userString, unsigned int lengthHash)
 	}
 	return "";
 }
+
+void hash::Hash::Clear()
+{
+	hash.clear();
+}

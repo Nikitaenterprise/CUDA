@@ -19,6 +19,7 @@ namespace hash
 		Hash();
 		~Hash();
 		std::string GetHash(std::string, unsigned int);
+		void Clear();
 	
 	};
 }
