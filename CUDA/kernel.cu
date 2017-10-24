@@ -7,6 +7,7 @@
 #include <iostream>
 #include <ctime>
 #include <string>
+#include <random>
 
 #include "Hash.h"
 
@@ -143,16 +144,54 @@ __global__ void multMatrix(float *c, const float *a, const float *b, int m)
 int main(int argc, char *argv[])
 {
 	hash::Hash hash;
-	
-	std::string str = "Zdorov";
+	hash::Hash firstHash;
+	std::string password = "Passwo";
+	std::string codedPassword = firstHash.GetHash(password, password.length());
+	std::string str = codedPassword;
+	std::string ans;
+	std::string tr(str);
+	std::random_device random_device;
+	std::mt19937 generator(random_device());
+	std::uniform_int_distribution<> distribution1(65, 90);
+	std::uniform_int_distribution<> distribution2(97, 122);
+	std::uniform_int_distribution<> distribution3(48, 57);
 	/*std::cout << "Type string you want to hash" << std::endl;
 	std::cin >> str;
 	std::cout << "Type length of hash string" << std::endl;
 	unsigned int length;
 	std::cin >> length;*/
-	str = hash.GetHash(str, 10);
-	std::cout << str << std::endl;
-
+	std::cout << "str.length() = " << str.length() << std::endl;
+	int counter=0;
+	while (1)
+	{
+		for (int i = 0; i < str.length(); i++)
+		{
+			int random = rand() % 3;
+			switch (random)
+			{
+			case 0:
+				tr[i] = distribution1(generator);
+				//std::cout << "tr[" << i << "] = " << tr[i] << std::endl;
+				break;
+			case 1:
+				tr[i] = distribution2(generator);
+				//std::cout << "tr[" << i << "] = " << tr[i] << std::endl;
+				break;
+			case 2:
+				tr[i] = distribution3(generator);
+				//std::cout << "tr[" << i << "] = " << tr[i] << std::endl;
+				break;
+			}
+		}
+		//std::cout << "tr = " << tr << std::endl;
+		ans = hash.GetHash(tr, str.length());
+		if (ans == str) break;
+		hash.Clear();
+		//std::cout << "tr = " << tr << " ans = " << ans << " str = " << str << std::endl;
+		counter++;
+	}
+	std::cout << "tr = " << tr << " ans = " << ans << " str = " << str << std::endl;
+	std::cout << counter << std::endl;
 	system("PAUSE");
 	return 0;
 }
