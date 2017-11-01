@@ -288,8 +288,10 @@ int main(int argc, char *argv[])
 	int innerCounter = 0, outerCounter = 0;
 	while (tr != password)
 	{
+		ans.clear();
 		while (ans != str)
 		{
+			tr.empty();
 			for (int i = 0; i < str.length(); i++)
 			{
 				int random = rand() % 3;
@@ -307,24 +309,24 @@ int main(int argc, char *argv[])
 				}
 			}
 			ans = hash.GetHash(tr, str.length());
-			coincidences.push_back(ans);
 			hash.Clear();
 			innerCounter++;
 		}
-		/*std::cout << "We are looking for this string : " << password << std::endl;
-		std::cout << "\tWith this hash : " << ans << std::endl;
+		coincidences.push_back(tr);
+		std::cout << "We are looking for this string : " << password << std::endl;
+		std::cout << "\tWith this hash : " << str << std::endl;
 		std::cout << "We`ve got this string : " << tr << std::endl;
-		std::cout << "\tWith this hash : " << str << std::endl;	*/
-		ans.empty();
-		tr.empty();
+		std::cout << "\tWith this hash : " << ans << std::endl;	
+		
 		outerCounter++;
 	}
 	std::cout << "Total number of steps = " << innerCounter << std::endl;
 	std::cout << "Nuber of coincidences = " << outerCounter << std::endl;
 	std::cout << "Chance for coincidences = " << static_cast <long double> (outerCounter) / static_cast <long double> (innerCounter) * 100 << "%" << std::endl;
 	std::cout << "Do you wanna see all coincidences?\n Y/N" << std::endl;
-	char *des;
-	switch (*des)
+	char des;
+	std::cin >> des;
+	switch (des)
 	{
 	case'Y':
 		for (int i = 0; i < coincidences.size(); i++) std::cout << coincidences[i] << std::endl;
