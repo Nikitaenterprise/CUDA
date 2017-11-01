@@ -11,6 +11,8 @@
 
 #include "Hash.h"
 
+#define BLOCK_SIZE 512
+
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
 
 __global__ void addKernel(int *c, const int *a, const int *b)
@@ -39,6 +41,78 @@ __global__ void multMatrix(float *c, const float *a, const float *b, int m)
 
 	c[ic + m * ty + tx] = sum;
 }
+
+__global__ void reduce1(int * inData, int * outData)
+{
+	__shared__ int data[BLOCK_SIZE];
+	int tid = threadIdx.x;
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+	data[tid] = inData[i]; 	// load into shared memory
+	__syncthreads();
+	for (int s = 1; s < blockDim.x; s *= 2) {
+		if (tid % (2 * s) == 0) 	// heavy branching !!!
+			data[tid] += data[tid + s];
+		__syncthreads();
+	}
+	if (tid == 0) 		// write result of block reduction
+		outData[blockIdx.x] = data[0];
+}
+
+__global__ void reduce2(int * inData, int * outData)
+{
+	__shared__ int data[BLOCK_SIZE];
+	int tid = threadIdx.x;
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	data[tid] = inData[i]; 	// load into shared memory
+	__syncthreads();
+	for (int s = 1; s < blockDim.x; s <<= 1)
+	{
+		int index = 2 * s * tid;	// better replace with >>
+		if (index < blockDim.x)
+			data[index] += data[index + s];
+		__syncthreads();
+	}
+	if (tid == 0) 		// write result of block reduction
+		outData[blockIdx.x] = data[0];
+}
+
+__global__ void reduce3(int * inData, int * outData)
+{
+	__shared__ int data[BLOCK_SIZE];
+	int tid = threadIdx.x;
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+	data[tid] = inData[i];
+	__syncthreads();
+	for (int s = blockDim.x / 2; s > 0; s >>= 1)
+	{
+		if (tid < s)
+			data[tid] += data[tid + s];
+		__syncthreads();
+	}
+	if (tid == 0)
+		outData[blockIdx.x] = data[0];
+}
+
+__global__ void reduce4(int * inData, int * outData)
+{
+	__shared__ int data[BLOCK_SIZE];
+	int tid = threadIdx.x;
+	int i = 2 * blockIdx.x * blockDim.x + threadIdx.x;
+
+	data[tid] = inData[i] + inData[i + blockDim.x]; // sum
+	__syncthreads();
+	for (int s = blockDim.x / 2; s > 0; s >>= 1)
+	{
+		if (tid < s)
+			data[tid] += data[tid + s];
+		__syncthreads();
+	}
+	if (tid == 0)
+		outData[blockIdx.x] = data[0];
+}
+
 
 //int main(int argc, char * argv[])
 //{
@@ -85,7 +159,7 @@ __global__ void multMatrix(float *c, const float *a, const float *b, int m)
 //	}
 //
 //	float *X, *Y, *result, *result1;
-//	int m = 1024;
+//	int m = 512;
 //	X = new float[m*m];
 //	Y = new float[m*m];
 //	result = new float[m*m];
@@ -138,6 +212,57 @@ __global__ void multMatrix(float *c, const float *a, const float *b, int m)
 //			}
 //		}
 //	}
+//
+//	delete[] a, b, c, d, _a, _b, _c;
+//	
+//	a = new int[n];
+//	b = new int[n];
+//
+//	startTime = clock();
+//	for (int i = 0; i < n; i++)
+//	{
+//		a[i] = rand();
+//	}
+//	long int A = 0;
+//	for (int i = 0; i < n; i++)
+//	{
+//		A += a[i];
+//	}
+//	endTime = clock();
+//	std::cout << "Calculating on CPU = " << endTime - startTime << std::endl;
+//	
+//	for (int i = 0; i < 4; i++)
+//	{
+//		long int _A = 0;
+//		startTime = clock();
+//		if (cudaMalloc((void**)&_a, n * sizeof(int)) != cudaSuccess) std::cout << "Bad alloc in run " << i << std::endl;
+//		if (cudaMalloc((void**)&_b, n * sizeof(int)) != cudaSuccess) std::cout << "Bad alloc in run " << i <<std::endl;
+//		if (cudaMemcpy(_a, a, n * sizeof(int), cudaMemcpyHostToDevice) != cudaSuccess) std::cout << "Bad copy to device in run " << i <<std::endl;
+//		switch (i)
+//		{
+//		case 0:
+//			reduce1 << <n / 512, 512 >> > (_a, _b);
+//			break;
+//		case 1:
+//			reduce2 << <n / 512, 512 >> > (_a, _b);
+//			break;
+//		case 2:
+//			reduce3 << <n / 512, 512 >> > (_a, _b);
+//			break;
+//		case 3:
+//			reduce4 << <n / 512, 512 >> > (_a, _b);
+//			break;
+//		}
+//		cudaThreadSynchronize();
+//		if (cudaDeviceSynchronize() != cudaSuccess) std::cout << "Error in syncronization in run " << i <<std::endl;
+//		if (cudaMemcpy(b, _b, n * sizeof(int), cudaMemcpyDeviceToHost) != cudaSuccess) std::cout << "Bad copy to host in run " << i << std::endl;
+//		endTime = clock();
+//		std::cout << "Calculating on GPU = " << endTime - startTime << " in run " << i << std::endl;
+//		for (int j = 0; j < n / 512; j++) { _A += b[j]; }
+//		result = { 0 };
+//		std::cout << "A = " << A << " _A = " << _A << " A - _A = " << A-_A << std::endl;
+//	}
+//
 //	std::system("pause");
 //}
 
@@ -145,53 +270,78 @@ int main(int argc, char *argv[])
 {
 	hash::Hash hash;
 	hash::Hash firstHash;
-	std::string password = "Passwo";
-	std::string codedPassword = firstHash.GetHash(password, password.length());
-	std::string str = codedPassword;
+	std::string password = "Pa8D";
+	std::cout << "password = " << password << std::endl; 
+	std::string str = firstHash.GetHash(password, password.length());
+	std::cout << "str = " << str << std::endl;
 	std::string ans;
 	std::string tr(str);
+	std::cout << "tr = " << tr << std::endl;
 	std::random_device random_device;
 	std::mt19937 generator(random_device());
-	std::uniform_int_distribution<> distribution1(65, 90);
-	std::uniform_int_distribution<> distribution2(97, 122);
-	std::uniform_int_distribution<> distribution3(48, 57);
-	/*std::cout << "Type string you want to hash" << std::endl;
-	std::cin >> str;
-	std::cout << "Type length of hash string" << std::endl;
-	unsigned int length;
-	std::cin >> length;*/
+	std::uniform_int_distribution<> distribution1(65, 90); //A-Z
+	std::uniform_int_distribution<> distribution2(97, 122); //a-z
+	std::uniform_int_distribution<> distribution3(48, 57); //0-9
+	std::vector<std::string> coincidences;
+	//AVictor2007@yandex.ru
 	std::cout << "str.length() = " << str.length() << std::endl;
-	int counter=0;
-	while (1)
+	int innerCounter = 0, outerCounter = 0;
+	while (tr != password)
 	{
-		for (int i = 0; i < str.length(); i++)
+		while (ans != str)
 		{
-			int random = rand() % 3;
-			switch (random)
+			for (int i = 0; i < str.length(); i++)
 			{
-			case 0:
-				tr[i] = distribution1(generator);
-				//std::cout << "tr[" << i << "] = " << tr[i] << std::endl;
-				break;
-			case 1:
-				tr[i] = distribution2(generator);
-				//std::cout << "tr[" << i << "] = " << tr[i] << std::endl;
-				break;
-			case 2:
-				tr[i] = distribution3(generator);
-				//std::cout << "tr[" << i << "] = " << tr[i] << std::endl;
-				break;
+				int random = rand() % 3;
+				switch (random)
+				{
+				case 0:
+					tr[i] = distribution1(generator);
+					break;
+				case 1:
+					tr[i] = distribution2(generator);
+					break;
+				case 2:
+					tr[i] = distribution3(generator);
+					break;
+				}
 			}
+			ans = hash.GetHash(tr, str.length());
+			coincidences.push_back(ans);
+			hash.Clear();
+			innerCounter++;
 		}
-		//std::cout << "tr = " << tr << std::endl;
-		ans = hash.GetHash(tr, str.length());
-		if (ans == str) break;
-		hash.Clear();
-		//std::cout << "tr = " << tr << " ans = " << ans << " str = " << str << std::endl;
-		counter++;
+		/*std::cout << "We are looking for this string : " << password << std::endl;
+		std::cout << "\tWith this hash : " << ans << std::endl;
+		std::cout << "We`ve got this string : " << tr << std::endl;
+		std::cout << "\tWith this hash : " << str << std::endl;	*/
+		ans.empty();
+		tr.empty();
+		outerCounter++;
 	}
-	std::cout << "tr = " << tr << " ans = " << ans << " str = " << str << std::endl;
-	std::cout << counter << std::endl;
+	std::cout << "Total number of steps = " << innerCounter << std::endl;
+	std::cout << "Nuber of coincidences = " << outerCounter << std::endl;
+	std::cout << "Chance for coincidences = " << static_cast <long double> (outerCounter) / static_cast <long double> (innerCounter) * 100 << "%" << std::endl;
+	std::cout << "Do you wanna see all coincidences?\n Y/N" << std::endl;
+	char *des;
+	switch (*des)
+	{
+	case'Y':
+		for (int i = 0; i < coincidences.size(); i++) std::cout << coincidences[i] << std::endl;
+		break;
+	case'N':
+		break;
+	}
+	hash::Hash checkHash;
+	std::string check;
+	for (;;)
+	{
+		std::cout << "Type string : ";
+		std::cin >> check;
+		std::cout << "your hash is : " << checkHash.GetHash(check, check.length()) << std::endl;
+		check.clear();
+		checkHash.Clear();
+	}
 	system("PAUSE");
 	return 0;
 }
